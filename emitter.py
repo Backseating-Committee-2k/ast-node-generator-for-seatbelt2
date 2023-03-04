@@ -31,10 +31,23 @@ def generate_header_file(input_filename: str, generator_description: GeneratorDe
     return result
 
 
+def extract_filename_from_path(path: str) -> str:
+    try:
+        index = path.rindex("/")
+        return path[index + 1:]
+    except ValueError:
+        try:
+            index = path.rindex("\\")
+            return path[index + 1:]
+        except ValueError:
+            return path
+
+
 def generate_source_file(input_filename: str, generator_description: GeneratorDescription, header_filename: str,
                          namespace: str) -> str:
     result = file_was_generated_info(input_filename)
-    result += f'#include "{header_filename}"\n\nnamespace {namespace} {{\n\n'
+    include_path = extract_filename_from_path(header_filename)
+    result += f'#include "{include_path}"\n\nnamespace {namespace} {{\n\n'
     result += abstract_type_definitions(generator_description)
     result += "}\n"
     return result
