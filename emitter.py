@@ -214,7 +214,7 @@ def abstract_type_definitions(generator_description: GeneratorDescription) -> st
             result += f"    {{ }}\n\n"
 
             # move constructor
-            result += f"    {sub_type_name}::{sub_type_name}({sub_type_name}&& other) noexcept\n        : {abstract_type_name}{{ {', '.join(parameter_value(member, from_other=False) for member in abstract_type.members)} }}\n        , {initializer_list(sub_type.members, from_other=True)}\n"
+            result += f"    {sub_type_name}::{sub_type_name}({sub_type_name}&& other) noexcept\n        : {abstract_type_name}{{ {', '.join(parameter_value(member, from_other=True) for member in abstract_type.members)} }}\n        , {initializer_list(sub_type.members, from_other=True)}\n"
             result += f"    {{\n"
             result += f"#ifdef DEBUG_BUILD\n"
             result += f"        if (this == std::addressof(other)) {{\n"
