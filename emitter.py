@@ -87,9 +87,12 @@ def parameter_value(member: Member, *, from_other: bool) -> str:
     return member_name
 
 
-def initializer_list(members: list[Member], *, from_other: bool) -> str:
-    return f"\n        , ".join(
+def initializer_list(members: list[Member], *, from_other: bool, trailing_comma: bool = False) -> str:
+    result = f"\n        , ".join(
         f"m_{member.name}{{ {parameter_value(member, from_other=from_other)} }}" for member in members)
+    if trailing_comma:
+        result += f"\n        ,"
+    return result
 
 
 def abstract_type_declarations(generator_description: GeneratorDescription) -> str:
@@ -102,7 +105,10 @@ def abstract_type_declarations(generator_description: GeneratorDescription) -> s
         for member in abstract_type.members:
             result += f"        {member.type_} m_{member.name};\n"
         if abstract_type.members:
-            result += f"\n"
+            result += f"#ifdef DEBUG_BUILD\n"
+            for member in abstract_type.members:
+                result += f"        bool m_{member.name}_is_valid = true;\n"
+            result += f"#endif\n\n"
 
         result += f"    protected:\n"
         result += f"        {abstract_type_name}({parameter_list(abstract_type.members)});\n\n"
@@ -137,7 +143,7 @@ def abstract_type_declarations(generator_description: GeneratorDescription) -> s
             result += f"    public:\n"
 
             # constructor
-            result += f"        explicit {sub_type_name}({parameter_list(sub_type.members)});\n\n"
+            result += f"        explicit {sub_type_name}({parameter_list(abstract_type.members, trailing_comma=True)} {parameter_list(sub_type.members)});\n\n"
 
             # copy constructor
             result += f"        {sub_type_name}(const {sub_type_name}&) = delete;\n"
@@ -206,13 +212,15 @@ def abstract_type_definitions(generator_description: GeneratorDescription) -> st
             result += f"    {{ }}\n\n"
 
             # move constructor
-            result += f"    {sub_type_name}::{sub_type_name}({sub_type_name}&& other) noexcept\n        : {initializer_list(sub_type.members, from_other=True)}\n"
+            result += f"    {sub_type_name}::{sub_type_name}({sub_type_name}&& other) noexcept\n        : {initializer_list(abstract_type.members, from_other=True, trailing_comma=True)} {initializer_list(sub_type.members, from_other=True)}\n"
             result += f"    {{\n"
             result += f"#ifdef DEBUG_BUILD\n"
             result += f"        if (this == std::addressof(other)) {{\n"
             result += f"            return;\n"
             result += f"        }}\n"
             result += f'        assert(other.all_members_valid() and "move out of partially moved-from value");\n'
+            for member in abstract_type.members:
+                result += f"        m_{member.name}_is_valid = true;\n"
             for member in sub_type.members:
                 result += f"        m_{member.name}_is_valid = true;\n"
             result += f"#endif\n"
@@ -220,7 +228,8 @@ def abstract_type_definitions(generator_description: GeneratorDescription) -> st
 
             # move assignment
             result += f"    {sub_type_name}& {sub_type_name}::operator=({sub_type_name}&& other) noexcept {{\n"
-            result += move_assignment_body(sub_type.members)
+            result += move_assignment_body(abstract_type.members, include_prelude=True)
+            result += move_assignment_body(sub_type.members, include_prelude=False)
             result += f"        return *this;\n"
             result += f"    }}\n\n"
 
@@ -272,14 +281,15 @@ def abstract_type_definitions(generator_description: GeneratorDescription) -> st
     return result
 
 
-def move_assignment_body(members: list[Member]) -> str:
+def move_assignment_body(members: list[Member], *, include_prelude: bool) -> str:
     result = ""
-    result += f"        if (this == std::addressof(other)) {{\n"
-    result += f"            return *this;\n"
-    result += f"        }}\n"
-    result += f"#ifdef DEBUG_BUILD\n"
-    result += f'        assert(other.all_members_valid() and "move out of partially moved-from value");\n'
-    result += f"#endif\n"
+    if include_prelude:
+        result += f"        if (this == std::addressof(other)) {{\n"
+        result += f"            return *this;\n"
+        result += f"        }}\n"
+        result += f"#ifdef DEBUG_BUILD\n"
+        result += f'        assert(other.all_members_valid() and "move out of partially moved-from value");\n'
+        result += f"#endif\n"
     for member in members:
         if member.by_move:
             result += f"        m_{member.name} = std::move(other.m_{member.name});\n"
