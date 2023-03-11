@@ -21,9 +21,6 @@ def main() -> None:
         print(f"lexer error: {exception}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"{len(tokens)} tokens found")
-    print("\n".join(str(token) for token in tokens))
-
     try:
         generator_description = parse(tokens)
     except ParserError as exception:
