@@ -52,8 +52,10 @@ class PolymorphicType:
 
 class AbstractType:
     def __init__(self, sub_types: dict[str, PolymorphicType],
+                 members: list[Member],
                  pure_virtual_functions: list[PureVirtualFunction]) -> None:
         self.sub_types = sub_types
+        self.members = members
         self.pure_virtual_functions = pure_virtual_functions
 
 
@@ -123,9 +125,13 @@ def parse(tokens: list[Token]) -> GeneratorDescription:
                 identifier = parser.consume(TokenType.IDENTIFIER)
                 contents = parser.consume(TokenType.STRING_LITERAL).lexeme[1:-1].strip()
                 type_definitions.append((identifier.lexeme, contents))
-            case TokenType.IDENTIFIER:
+            case TokenType.IDENTIFIER:  # polymorphic type
                 identifier = parser.consume(TokenType.IDENTIFIER)
                 parser.consume(TokenType.LEFT_PARENTHESIS)
+
+                base_type_members: list[Member] = list()
+                while parser.current().type_ == TokenType.IDENTIFIER:
+                    base_type_members.append(parse_data_member(parser))
 
                 functions: list[PureVirtualFunction] = list()
                 while parser.current().type_ == TokenType.FUNCTION:
@@ -146,7 +152,7 @@ def parse(tokens: list[Token]) -> GeneratorDescription:
                     name, members, implementations = parse_subtype(parser)
                     polymorphic_type = PolymorphicType(functions, members, implementations)
                     sub_types[name] = polymorphic_type
-                polymorphic_types[identifier.lexeme] = AbstractType(sub_types, functions)
+                polymorphic_types[identifier.lexeme] = AbstractType(sub_types, base_type_members, functions)
             case TokenType.STRING_LITERAL:
                 postlude = parser.current().lexeme[1:-1].strip()
                 parser.next()  # consume postlude
@@ -166,18 +172,26 @@ def parse_subtype(parser: Parser) -> tuple[str, list[Member], list[Implementatio
     implementations: list[Implementation] = list()
     while True:
         if parser.current().type_ == TokenType.IDENTIFIER:
-            member_name = parser.consume(TokenType.IDENTIFIER)
-            by_move = parser.current().type_ == TokenType.BY_MOVE
-            if by_move:
-                parser.next()  # consume "by_move"
-            member_type = parser.consume(TokenType.STRING_LITERAL).lexeme[1:-1].strip()
-            members.append(Member(member_name.lexeme, by_move, member_type))
+            members.append(parse_data_member(parser))
         elif parser.current().type_ == TokenType.IMPLEMENT:
-            parser.consume(TokenType.IMPLEMENT)
-            function_name = parser.consume(TokenType.IDENTIFIER).lexeme
-            function_body = parser.consume(TokenType.STRING_LITERAL).lexeme[1:-1].strip()
-            implementations.append(Implementation(function_name, function_body))
+            implementations.append(parse_implementation(parser))
         else:
             break
     parser.consume(TokenType.RIGHT_PARENTHESIS)
     return identifier.lexeme, members, implementations
+
+
+def parse_data_member(parser: Parser) -> Member:
+    member_name = parser.consume(TokenType.IDENTIFIER)
+    by_move = parser.current().type_ == TokenType.BY_MOVE
+    if by_move:
+        parser.next()  # consume "by_move"
+    member_type = parser.consume(TokenType.STRING_LITERAL).lexeme[1:-1].strip()
+    return Member(member_name.lexeme, by_move, member_type)
+
+
+def parse_implementation(parser: Parser) -> Implementation:
+    parser.consume(TokenType.IMPLEMENT)
+    function_name = parser.consume(TokenType.IDENTIFIER).lexeme
+    function_body = parser.consume(TokenType.STRING_LITERAL).lexeme[1:-1].strip()
+    return Implementation(function_name, function_body)

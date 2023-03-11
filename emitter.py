@@ -71,18 +71,25 @@ def forward_declarations(generator_description: GeneratorDescription) -> str:
     return f"{result}\n"
 
 
-def parameter_list(members: list[Member]) -> str:
-    return f",\n            ".join(f"{member.type_} {member.name}" for member in members)
+def parameter_list(members: list[Member], *, trailing_comma: bool = False) -> str:
+    if not members:
+        return ""
+    result = f",\n            ".join(f"{member.type_} {member.name}" for member in members)
+    if trailing_comma:
+        result += ",\n           "
+    return result
 
 
-def initializer_list(members: list[Member], from_other: bool) -> str:
-    def parameter_value(member: Member) -> str:
-        member_name = f"other.m_{member.name}" if from_other else member.name
-        if member.by_move:
-            return f"std::move({member_name})"
-        return member_name
+def parameter_value(member: Member, *, from_other: bool) -> str:
+    member_name = f"other.m_{member.name}" if from_other else member.name
+    if member.by_move:
+        return f"std::move({member_name})"
+    return member_name
 
-    return f"\n        , ".join(f"m_{member.name}{{ {parameter_value(member)} }}" for member in members)
+
+def initializer_list(members: list[Member], *, from_other: bool) -> str:
+    return f"\n        , ".join(
+        f"m_{member.name}{{ {parameter_value(member, from_other=from_other)} }}" for member in members)
 
 
 def abstract_type_declarations(generator_description: GeneratorDescription) -> str:
@@ -91,7 +98,15 @@ def abstract_type_declarations(generator_description: GeneratorDescription) -> s
     for abstract_type_name, abstract_type in generator_description.abstract_types.items():
         result += f"    // {abstract_type_name} and its subtypes\n"
         result += f"    struct {abstract_type_name} {{\n"
-        result += f"    protected:\n        {abstract_type_name}() = default;\n\n    public:\n"
+
+        for member in abstract_type.members:
+            result += f"        {member.type_} m_{member.name};\n"
+        if abstract_type.members:
+            result += f"\n"
+
+        result += f"    protected:\n"
+        result += f"        {abstract_type_name}({parameter_list(abstract_type.members)});\n\n"
+        result += f"    public:\n"
         result += f"        virtual ~{abstract_type_name}() = default;\n\n"
 
         # member functions of the abstract parent class
@@ -169,6 +184,9 @@ def abstract_type_definitions(generator_description: GeneratorDescription) -> st
     for abstract_type_name, abstract_type in generator_description.abstract_types.items():
         result += f"    // definitions for {abstract_type_name}\n"
 
+        result += f"    {abstract_type_name}::{abstract_type_name}({parameter_list(abstract_type.members)})\n        : {initializer_list(abstract_type.members, from_other=False)}\n"
+        result += f"    {{ }}\n\n"
+
         # definitions for abstract parent class
         for sub_type_name, sub_type in abstract_type.sub_types.items():
             result += f"    [[nodiscard]] bool {abstract_type_name}::is_{to_snake_case(sub_type_name)}() const {{\n"
@@ -184,7 +202,7 @@ def abstract_type_definitions(generator_description: GeneratorDescription) -> st
             result += f"    // definitions for {sub_type_name}\n"
 
             # constructor
-            result += f"    {sub_type_name}::{sub_type_name}({parameter_list(sub_type.members)})\n        : {initializer_list(sub_type.members, from_other=False)}\n"
+            result += f"    {sub_type_name}::{sub_type_name}({parameter_list(abstract_type.members, trailing_comma=True)} {parameter_list(sub_type.members)})\n        : {abstract_type_name}{{ {', '.join(parameter_value(member, from_other=False) for member in abstract_type.members)} }}\n        , {initializer_list(sub_type.members, from_other=False)}\n"
             result += f"    {{ }}\n\n"
 
             # move constructor
