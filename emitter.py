@@ -190,7 +190,9 @@ def abstract_type_definitions(generator_description: GeneratorDescription) -> st
     for abstract_type_name, abstract_type in generator_description.abstract_types.items():
         result += f"    // definitions for {abstract_type_name}\n"
 
-        result += f"    {abstract_type_name}::{abstract_type_name}({parameter_list(abstract_type.members)})\n        : {initializer_list(abstract_type.members, from_other=False)}\n"
+        result += f"    {abstract_type_name}::{abstract_type_name}({parameter_list(abstract_type.members)})\n"
+        if abstract_type.members:
+            result += f"        : {initializer_list(abstract_type.members, from_other=False)}\n"
         result += f"    {{ }}\n\n"
 
         # definitions for abstract parent class
@@ -212,7 +214,7 @@ def abstract_type_definitions(generator_description: GeneratorDescription) -> st
             result += f"    {{ }}\n\n"
 
             # move constructor
-            result += f"    {sub_type_name}::{sub_type_name}({sub_type_name}&& other) noexcept\n        : {initializer_list(abstract_type.members, from_other=True, trailing_comma=True)} {initializer_list(sub_type.members, from_other=True)}\n"
+            result += f"    {sub_type_name}::{sub_type_name}({sub_type_name}&& other) noexcept\n        : {abstract_type_name}{{ {', '.join(parameter_value(member, from_other=False) for member in abstract_type.members)} }}\n        , {initializer_list(sub_type.members, from_other=True)}\n"
             result += f"    {{\n"
             result += f"#ifdef DEBUG_BUILD\n"
             result += f"        if (this == std::addressof(other)) {{\n"
