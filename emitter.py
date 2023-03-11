@@ -111,7 +111,7 @@ def abstract_type_declarations(generator_description: GeneratorDescription) -> s
             result += f"#endif\n\n"
 
         result += f"    protected:\n"
-        result += f"        {abstract_type_name}({parameter_list(abstract_type.members)});\n\n"
+        result += f"        explicit {abstract_type_name}({parameter_list(abstract_type.members)});\n\n"
         result += f"    public:\n"
         result += f"        virtual ~{abstract_type_name}() = default;\n\n"
 
