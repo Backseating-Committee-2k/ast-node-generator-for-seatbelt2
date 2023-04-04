@@ -1,5 +1,6 @@
 from parser import GeneratorDescription, Member
 import re
+from os import path, makedirs
 
 
 def emit(input_filename: str, generator_description: GeneratorDescription, base_filename: str, namespace: str) -> None:
@@ -10,6 +11,10 @@ def emit(input_filename: str, generator_description: GeneratorDescription, base_
 
 
 def save_file(contents: str, filename: str) -> None:
+    folder = path.dirname(filename)
+    if not path.exists(folder):
+        makedirs(folder) # like mkdir -p
+
     with open(filename, "w") as file:
         file.write(contents)
 
